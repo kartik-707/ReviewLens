@@ -1,14 +1,12 @@
 """
-nlp_pipeline.py
----------------
-Core NLP pipeline - zero external ML dependencies (stdlib + vader_lite.py).
+nlp_pipeline.py - Core NLP pipeline using stdlib + vader_lite only.
 
 Pipeline stages:
   1. Text preprocessing  - sentence splitting, cleaning
-  2. Aspect extraction   - keyword/n-gram based with seed vocabulary
+  2. Aspect extraction   - keyword-based with seed vocabulary
   3. Aspect-level VADER sentiment scoring
-  4. Evidence extraction - best supporting quote per aspect x polarity
-  5. Aggregation         - ranked aspects, pros & cons
+  4. Evidence extraction - best supporting quotes per polarity
+  5. Pros & Cons         - extracted from SENTENCE-level signals, not aspect averages
   6. Summary + confidence
 """
 
@@ -23,23 +21,28 @@ from vader_lite import polarity_scores
 
 logger = logging.getLogger(__name__)
 
-MIN_REVIEWS   = 5
-_MIN_MENTIONS = 2
-MAX_EVIDENCE  = 3
+MIN_REVIEWS        = 5
+_MIN_MENTIONS      = 2
+MAX_EVIDENCE       = 3
+PRO_THRESHOLD      = 0.15   # aspect avg compound >= this → Pro
+CON_THRESHOLD      = -0.05  # aspect avg compound <= this → Con
+# Even if aspect average is positive, sentences below this are "con evidence"
+SENTENCE_NEG_THRESHOLD = -0.10
+SENTENCE_POS_THRESHOLD = 0.15
 
 SEED_ASPECTS: Dict[str, List[str]] = {
     "Battery":          ["battery", "charge", "charging", "power", "mah", "drain"],
     "Screen":           ["screen", "display", "resolution", "brightness", "pixel", "lcd", "oled"],
     "Performance":      ["performance", "speed", "processor", "lag", "fast", "slow", "cpu", "ram", "responsive", "freezes"],
     "Camera":           ["camera", "photo", "picture", "image", "lens", "megapixel", "selfie", "video", "recording"],
-    "Build Quality":    ["build", "quality", "material", "plastic", "metal", "finish", "design", "sturdy", "durable", "fragile"],
-    "Customer Service": ["customer", "service", "support", "return", "refund", "warranty", "seller", "delivery", "shipping"],
-    "Price":            ["price", "value", "cost", "worth", "expensive", "cheap", "affordable", "overpriced", "deal"],
+    "Build Quality":    ["build", "quality", "material", "plastic", "metal", "finish", "design", "sturdy", "durable", "fragile", "broke", "broken", "cracked", "flimsy"],
+    "Customer Service": ["customer", "service", "support", "return", "refund", "warranty", "seller", "delivery", "shipping", "arrived", "package", "packaging"],
+    "Price":            ["price", "value", "cost", "worth", "expensive", "cheap", "affordable", "overpriced", "deal", "money", "waste", "paid", "pay"],
     "Storage":          ["storage", "memory", "capacity", "gb", "space", "expandable", "microsd"],
-    "Software":         ["software", "app", "android", "ios", "update", "bug", "ui", "interface", "os", "bloatware"],
-    "Sound":            ["sound", "audio", "speaker", "volume", "bass", "headphone", "earphone", "microphone"],
+    "Software":         ["software", "app", "android", "ios", "update", "bug", "ui", "interface", "os", "bloatware", "ads", "glitch", "crash", "freeze"],
+    "Sound":            ["sound", "audio", "speaker", "volume", "bass", "headphone", "earphone", "microphone", "noise"],
     "Size / Weight":    ["size", "weight", "portable", "thin", "light", "heavy", "bulky", "compact"],
-    "Ease of Use":      ["easy", "simple", "setup", "intuitive", "complicated", "navigation"],
+    "Ease of Use":      ["easy", "simple", "setup", "intuitive", "complicated", "navigation", "point", "useless", "confusing"],
 }
 
 _ASPECT_TOKENS: Dict[str, set] = {asp: set(kws) for asp, kws in SEED_ASPECTS.items()}
@@ -61,8 +64,7 @@ def analyse_product(reviews: List[dict]) -> dict:
         return _build_overall_only(reviews)
 
     aspect_sentiments = {asp: _score_aspect(sents) for asp, sents in aspect_sentences.items()}
-
-    ranked_aspects = sorted(aspect_sentiments, key=lambda a: len(aspect_sentences[a]), reverse=True)
+    ranked_aspects    = sorted(aspect_sentiments, key=lambda a: len(aspect_sentences[a]), reverse=True)
 
     pros, cons = _extract_pros_cons(aspect_sentiments, aspect_sentences)
     overall    = _overall_summary(reviews, aspect_sentiments)
@@ -134,7 +136,7 @@ def _score_aspect(sents: List[dict]) -> dict:
 
     if mean_c >= 0.10:
         label = "Positive"
-    elif mean_c <= -0.10:
+    elif mean_c <= -0.05:
         label = "Negative"
     else:
         label = "Neutral"
@@ -157,16 +159,24 @@ def _extract_pros_cons(
     aspect_sentiments: Dict[str, dict],
     aspect_sentences:  Dict[str, List[dict]],
 ) -> Tuple[List[dict], List[dict]]:
+    """
+    Pros  = aspects where avg compound >= PRO_THRESHOLD
+    Cons  = aspects where avg compound <= CON_THRESHOLD
+            OR aspects that have a significant number of negative sentences
+            even if the overall average is positive (mixed products).
+    """
     pros: List[dict] = []
     cons: List[dict] = []
 
     for aspect, sentiment in aspect_sentiments.items():
         sents    = aspect_sentences[aspect]
         compound = sentiment["compound"]
+        neg_pct  = sentiment["neg_pct"]
 
-        if compound >= 0.10:
+        # ── PROS: average is clearly positive ──
+        if compound >= PRO_THRESHOLD:
             evidence_sents = sorted(
-                (s for s in sents if s["compound"] >= 0.05),
+                (s for s in sents if s["compound"] >= SENTENCE_POS_THRESHOLD),
                 key=lambda s: s["compound"], reverse=True,
             )[:MAX_EVIDENCE]
             if evidence_sents:
@@ -176,20 +186,26 @@ def _extract_pros_cons(
                     "evidence": [_trim_quote(s["text"]) for s in evidence_sents],
                 })
 
-        elif compound <= -0.10:
-            evidence_sents = sorted(
-                (s for s in sents if s["compound"] <= -0.05),
+        # ── CONS: average is negative OR >20% of sentences are negative ──
+        if compound <= CON_THRESHOLD or neg_pct >= 20.0:
+            neg_sents = sorted(
+                (s for s in sents if s["compound"] <= SENTENCE_NEG_THRESHOLD),
                 key=lambda s: s["compound"],
             )[:MAX_EVIDENCE]
-            if evidence_sents:
+            if neg_sents:
+                # Use the actual negative compound for sorting/display
+                neg_avg = statistics.mean(s["compound"] for s in neg_sents)
                 cons.append({
                     "aspect":   aspect,
-                    "score":    round(compound, 3),
-                    "evidence": [_trim_quote(s["text"]) for s in evidence_sents],
+                    "score":    round(neg_avg, 3),
+                    "evidence": [_trim_quote(s["text"]) for s in neg_sents],
                 })
 
     pros.sort(key=lambda x: x["score"], reverse=True)
     cons.sort(key=lambda x: x["score"])
+
+    # Deduplicate: if an aspect appears in both pros and cons, keep both
+    # (it means customers are split — that's valuable signal)
     return pros, cons
 
 
@@ -205,11 +221,11 @@ def _overall_summary(reviews: List[dict], aspect_sentiments: Dict[str, dict]) ->
     confidence      = round(volume_score + agreement_score + coverage_score, 1)
 
     top_pro = max(
-        (a for a, s in aspect_sentiments.items() if s["compound"] >= 0.10),
+        (a for a, s in aspect_sentiments.items() if s["compound"] >= PRO_THRESHOLD),
         key=lambda a: aspect_sentiments[a]["compound"], default=None,
     )
     top_con = min(
-        (a for a, s in aspect_sentiments.items() if s["compound"] <= -0.10),
+        (a for a, s in aspect_sentiments.items() if s["neg_pct"] >= 20.0 or s["compound"] <= CON_THRESHOLD),
         key=lambda a: aspect_sentiments[a]["compound"], default=None,
     )
 

@@ -7,7 +7,7 @@ Aspect-level sentiment analysis on Amazon product reviews.
 ### Backend (Python — no extra installs needed)
 ```bash
 cd backend
-python3 main.py          # starts on http://localhost:8000
+python main.py          # starts on http://localhost:8000
 ```
 
 ### Frontend (standalone)
@@ -17,8 +17,7 @@ It connects to `http://localhost:8000` automatically.
 ### Frontend (Vite dev server — requires npm)
 ```bash
 cd frontend
-npm install
-npm run dev              # http://localhost:5173
+python -m http.server 3000             # http://localhost:5173
 ```
 
 ## API Endpoints
@@ -26,7 +25,7 @@ npm run dev              # http://localhost:5173
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Health check |
-| GET | `/api/products` | List all product IDs |
+| GET | `/api/products` | List all product IDs |    
 | GET | `/api/insights/{product_id}` | Full NLP insights |
 
 ## Sample Product IDs
