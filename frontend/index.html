@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ReviewLens · Product Insight Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:       #0d0d0f;
+    --paper:     #f5f3ee;
+    --cream:     #ede9e0;
+    --warm:      #e8e2d5;
+    --accent:    #c8522a;
+    --accent2:   #3d6b4f;
+    --gold:      #b5893a;
+    --muted:     #7a7468;
+    --line:      #d5d0c8;
+    --pos:       #3d6b4f;
+    --neg:       #b03a2e;
+    --neu:       #6b6052;
+    --card:      #faf8f4;
+    --shadow:    0 2px 8px rgba(13,13,15,0.08), 0 0 0 1px rgba(13,13,15,0.05);
+    --shadow-lg: 0 8px 32px rgba(13,13,15,0.12), 0 0 0 1px rgba(13,13,15,0.06);
+    --r:         6px;
+    --r-lg:      12px;
+    font-size: 15px;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 40px 0 32px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 40px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo-group { display: flex; flex-direction: column; gap: 4px; }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 2rem;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .logo span { color: var(--accent); }
+  .tagline { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
+
+  .header-meta { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); text-align: right; }
+
+  /* ── Search bar ── */
+  .search-section { margin-bottom: 48px; }
+  .search-label { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.05rem; margin-bottom: 10px; display: block; }
+
+  .search-row { display: flex; gap: 10px; align-items: stretch; }
+  .search-input {
+    flex: 1;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: var(--r);
+    padding: 12px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,82,42,0.12); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .search-btn {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: var(--r);
+    padding: 12px 28px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .search-btn:hover { background: var(--accent); }
+  .search-btn:active { transform: scale(0.97); }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .sample-ids {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .sample-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+  .sample-chip {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    background: var(--warm);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    color: var(--ink);
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .sample-chip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ── States ── */
+  .state-box {
+    border: 1.5px dashed var(--line);
+    border-radius: var(--r-lg);
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .state-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .state-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.1rem; margin-bottom: 6px; color: var(--ink); }
+  .state-sub { font-size: 0.85rem; line-height: 1.6; }
+
+  /* Loading dots */
+  .loading-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+  .dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-10px); } }
+
+  /* ── Dashboard grid ── */
+  .dashboard { animation: fadeUp 0.4s ease both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Section title ── */
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  /* ── Overview card row ── */
+  .overview-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+  @media (max-width: 700px) { .overview-row { grid-template-columns: repeat(2, 1fr); } }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+  .stat-card.green::before { background: var(--pos); }
+  .stat-card.gold::before  { background: var(--gold); }
+  .stat-card.muted::before { background: var(--muted); }
+
+  .stat-value { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.9rem; line-height: 1; margin-bottom: 4px; letter-spacing: -0.03em; }
+  .stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+
+  /* ── Summary card ── */
+  .summary-card {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: var(--r-lg);
+    padding: 24px 28px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
+  }
+  .summary-card::after {
+    content: '"';
+    position: absolute;
+    right: 24px;
+    top: -10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 8rem;
+    color: rgba(255,255,255,0.04);
+    line-height: 1;
+    pointer-events: none;
+  }
+  .summary-card .product-id {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    opacity: 0.5;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+  .summary-card .narrative {
+    font-size: 1rem;
+    line-height: 1.65;
+    font-weight: 300;
+    opacity: 0.92;
+    max-width: 680px;
+  }
+
+  /* Confidence bar */
+  .confidence-row { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+  .conf-bar-track { flex: 1; height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; }
+  .conf-bar-fill  { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--gold), #e8b84b); transition: width 0.6s cubic-bezier(.22,1,.36,1); }
+  .conf-label { font-family: 'DM Mono', monospace; font-size: 0.7rem; opacity: 0.6; white-space: nowrap; }
+
+  /* ── Chart section ── */
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 32px;
+  }
+  .chart-card .card-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 20px;
+  }
+
+  /* Custom recharts tooltip */
+  .custom-tooltip {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+  }
+  .tooltip-label { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; }
+
+  /* ── Pros & Cons ── */
+  .pros-cons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  @media (max-width: 640px) { .pros-cons-grid { grid-template-columns: 1fr; } }
+
+  .pc-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .pc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pc-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+  .badge-pro { background: rgba(61,107,79,0.12); color: var(--pos); }
+  .badge-con { background: rgba(176,58,46,0.12); color: var(--neg); }
+
+  .pc-header-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; }
+
+  .evidence-item {
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+  .evidence-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--ink);
+    text-align: left;
+    background: var(--warm);
+    transition: background 0.12s;
+  }
+  .evidence-btn:hover { background: var(--cream); }
+  .evidence-aspect { flex: 1; }
+  .evidence-score {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .score-pos { background: rgba(61,107,79,0.1); color: var(--pos); }
+  .score-neg { background: rgba(176,58,46,0.1); color: var(--neg); }
+
+  .chevron { transition: transform 0.2s; font-size: 0.7rem; opacity: 0.5; }
+  .chevron.open { transform: rotate(180deg); }
+
+  .evidence-quotes {
+    border-top: 1px solid var(--line);
+    background: var(--paper);
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease;
+  }
+  .evidence-quotes.open { max-height: 600px; }
+
+  .quote-item {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--muted);
+    position: relative;
+  }
+  .quote-item:last-child { border-bottom: none; }
+  .quote-item::before { content: '"'; color: var(--accent); font-size: 1.1rem; margin-right: 3px; line-height: 0; vertical-align: -2px; }
+
+  /* ── Aspects list ── */
+  .aspects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 32px; }
+
+  .aspect-chip {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .aspect-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.82rem; margin-bottom: 4px; }
+  .aspect-mentions { font-size: 0.7rem; color: var(--muted); margin-bottom: 8px; }
+
+  .aspect-bar-track { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .aspect-bar-fill  { height: 100%; border-radius: 2px; transition: width 0.5s cubic-bezier(.22,1,.36,1); }
+  .bar-pos { background: var(--pos); }
+  .bar-neg { background: var(--neg); }
+  .bar-neu { background: var(--muted); }
+
+  .aspect-sentiment {
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-top: 5px;
+  }
+  .sent-pos { color: var(--pos); }
+  .sent-neg { color: var(--neg); }
+  .sent-neu { color: var(--muted); }
+
+  /* ── Error ── */
+  .error-box {
+    background: rgba(176,58,46,0.06);
+    border: 1.5px solid rgba(176,58,46,0.25);
+    border-radius: var(--r-lg);
+    padding: 24px 28px;
+    color: var(--neg);
+    font-size: 0.9rem;
+  }
+  .error-title { font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 6px; }
+
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Recharts override – hide outline */
+  .recharts-wrapper:focus, .recharts-surface:focus { outline: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useCallback, useRef } = React;
+const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } = Recharts;
+
+const API_BASE = "http://localhost:8000";
+
+const SAMPLE_IDS = [
+  "AVphgVaX1cnluZ0-DR74",
+  "AVpfl8cLLJeJML43AE3S",
+  "AV1YE_muvKc47QAVgpwE",
+  "AVqkIhwDv8e3D1O-lebb",
+  "AV1YnRtnglJLPUi8IJmV",
+];
+
+// ── Custom tooltip for recharts ─────────────────────────────────────────────
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="custom-tooltip">
+      <div className="tooltip-label">{label}</div>
+      <div>Score: {d.score?.toFixed(3)}</div>
+      <div>Mentions: {d.mention_count}</div>
+      <div>+{d.positive_pct?.toFixed(0)}% / -{d.negative_pct?.toFixed(0)}%</div>
+    </div>
+  );
+}
+
+// ── Evidence expandable card ────────────────────────────────────────────────
+function EvidenceCard({ item, isPro }) {
+  const [open, setOpen] = useState(false);
+  const score = isPro ? `+${item.score.toFixed(2)}` : item.score.toFixed(2);
+  return (
+    <div className="evidence-item">
+      <button className="evidence-btn" onClick={() => setOpen(o => !o)}>
+        <span className="evidence-aspect">{item.aspect}</span>
+        <span className={`evidence-score ${isPro ? 'score-pos' : 'score-neg'}`}>{score}</span>
+        <span className={`chevron ${open ? 'open' : ''}`}>▼</span>
+      </button>
+      <div className={`evidence-quotes ${open ? 'open' : ''}`}>
+        {item.evidence.map((q, i) => (
+          <div key={i} className="quote-item">{q}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ────────────────────────────────────────────────────────────────
+function App() {
+  const [query, setQuery]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [data, setData]       = useState(null);
+  const [error, setError]     = useState(null);
+  const [searched, setSearched] = useState(false);
+  const inputRef = useRef(null);
+
+  const fetchInsights = useCallback(async (pid) => {
+    const id = (pid || query).trim();
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    setData(null);
+    setSearched(true);
+    try {
+      const res  = await fetch(`${API_BASE}/api/insights/${encodeURIComponent(id)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || `HTTP ${res.status}`);
+      if (json.status === "insufficient_data") throw new Error(json.message);
+      setData(json);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  const handleKey = (e) => { if (e.key === "Enter") fetchInsights(); };
+
+  const handleSample = (id) => { setQuery(id); fetchInsights(id); };
+
+  // ── Chart data ─────────────────────────────────────────────────────────
+  const chartData = data?.aspects?.slice(0, 10).map(a => ({
+    name: a.name.length > 10 ? a.name.slice(0, 9) + '…' : a.name,
+    fullName: a.name,
+    score: a.score,
+    mention_count: a.mention_count,
+    positive_pct: a.positive_pct,
+    negative_pct: a.negative_pct,
+    sentiment: a.sentiment,
+  })) || [];
+
+  const barColor = (s) => s === "Positive" ? "#3d6b4f" : s === "Negative" ? "#b03a2e" : "#7a7468";
+
+  const stars = data ? "★".repeat(Math.round(data.overall.average_rating)) + "☆".repeat(5 - Math.round(data.overall.average_rating)) : "";
+
+  return (
+    <div className="app">
+      {/* ── Header ── */}
+      <header className="header">
+        <div className="logo-group">
+          <div className="logo">Review<span>Lens</span></div>
+          <div className="tagline">Aspect-Level Sentiment Intelligence</div>
+        </div>
+        <div className="header-meta">
+          Amazon Product Reviews<br/>
+          NLP · VADER · Aspect Mining
+        </div>
+      </header>
+
+      {/* ── Search ── */}
+      <div className="search-section">
+        <label className="search-label" htmlFor="pid">Product ID</label>
+        <div className="search-row">
+          <input
+            id="pid"
+            ref={inputRef}
+            className="search-input"
+            placeholder="e.g. AVphgVaX1cnluZ0-DR74"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKey}
+            spellCheck={false}
+          />
+          <button className="search-btn" onClick={() => fetchInsights()} disabled={loading || !query.trim()}>
+            {loading ? <span className="spinner" /> : "Analyse"}
+          </button>
+        </div>
+        <div className="sample-ids">
+          <span className="sample-label">Try:</span>
+          {SAMPLE_IDS.map(id => (
+            <button key={id} className="sample-chip" onClick={() => handleSample(id)}>
+              {id.slice(0, 16)}…
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── States ── */}
+      {!searched && !loading && (
+        <div className="state-box">
+          <div className="state-icon">🔍</div>
+          <div className="state-title">Enter a Product ID</div>
+          <div className="state-sub">Enter an Amazon product ID above to generate<br/>aspect-level sentiment insights from customer reviews.</div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="state-box">
+          <div className="loading-dots"><div className="dot"/><div className="dot"/><div className="dot"/></div>
+          <div className="state-title">Analysing reviews…</div>
+          <div className="state-sub">Running NLP pipeline · extracting aspects · scoring sentiment</div>
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="error-box">
+          <div className="error-title">⚠ Could not load insights</div>
+          <div>{error}</div>
+        </div>
+      )}
+
+      {/* ── Dashboard ── */}
+      {data && !loading && (
+        <div className="dashboard">
+
+          {/* Overview stats */}
+          <div className="section-title">Overview</div>
+          <div className="overview-row">
+            <div className="stat-card green">
+              <div className="stat-value">{data.overall.average_rating.toFixed(1)}</div>
+              <div className="stat-label">Avg Rating</div>
+              <div style={{marginTop:4, fontSize:'0.78rem', color:'#b5893a', letterSpacing:'0.05em'}}>{stars}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{data.review_count.toLocaleString()}</div>
+              <div className="stat-label">Reviews</div>
+            </div>
+            <div className="stat-card gold">
+              <div className="stat-value">{data.aspects.length}</div>
+              <div className="stat-label">Aspects Found</div>
+            </div>
+            <div className="stat-card muted">
+              <div className="stat-value">{Math.round(data.overall.confidence)}<span style={{fontSize:'1rem',opacity:0.5}}>/100</span></div>
+              <div className="stat-label">Confidence</div>
+            </div>
+          </div>
+
+          {/* Summary */}
+          <div className="summary-card">
+            <div className="product-id">PRODUCT · {data.product_id}</div>
+            <div className="narrative">{data.overall.narrative}</div>
+            <div className="confidence-row">
+              <div className="conf-bar-track">
+                <div className="conf-bar-fill" style={{width: `${data.overall.confidence}%`}} />
+              </div>
+              <div className="conf-label">Confidence {data.overall.confidence.toFixed(0)}%</div>
+            </div>
+          </div>
+
+          {/* Chart */}
+          {chartData.length > 0 && (
+            <div className="chart-card">
+              <div className="card-title">Aspect Sentiment Scores</div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={chartData} margin={{top:4, right:16, left:-16, bottom:4}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#d5d0c8" vertical={false} />
+                  <XAxis dataKey="name" tick={{fontFamily:'DM Mono', fontSize:10, fill:'#7a7468'}} axisLine={false} tickLine={false} />
+                  <YAxis domain={[-1,1]} tick={{fontFamily:'DM Mono', fontSize:10, fill:'#7a7468'}} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{fill:'rgba(13,13,15,0.04)'}} />
+                  <Bar dataKey="score" radius={[4,4,0,0]} maxBarSize={40}>
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={barColor(d.sentiment)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{display:'flex', gap:16, marginTop:10, justifyContent:'center'}}>
+                {[['#3d6b4f','Positive'],['#b03a2e','Negative'],['#7a7468','Neutral']].map(([c,l]) => (
+                  <span key={l} style={{display:'flex', alignItems:'center', gap:5, fontSize:'0.7rem', color:'var(--muted)', fontFamily:'DM Mono'}}>
+                    <span style={{width:10, height:10, borderRadius:2, background:c, display:'inline-block'}}/>
+                    {l}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Aspects grid */}
+          {data.aspects.length > 0 && (
+            <>
+              <div className="section-title">All Aspects</div>
+              <div className="aspects-grid">
+                {data.aspects.map(a => (
+                  <div key={a.name} className="aspect-chip">
+                    <div className="aspect-name">{a.name}</div>
+                    <div className="aspect-mentions">{a.mention_count} mentions</div>
+                    <div className="aspect-bar-track">
+                      <div
+                        className={`aspect-bar-fill ${a.sentiment==='Positive'?'bar-pos':a.sentiment==='Negative'?'bar-neg':'bar-neu'}`}
+                        style={{width:`${Math.abs(a.score)*100}%`}}
+                      />
+                    </div>
+                    <div className={`aspect-sentiment ${a.sentiment==='Positive'?'sent-pos':a.sentiment==='Negative'?'sent-neg':'sent-neu'}`}>
+                      {a.sentiment} · {a.score > 0 ? '+' : ''}{a.score.toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Pros & Cons */}
+          {(data.pros.length > 0 || data.cons.length > 0) && (
+            <>
+              <div className="section-title">Evidence-Backed Pros &amp; Cons</div>
+              <div className="pros-cons-grid">
+                {/* Pros */}
+                <div className="pc-card">
+                  <div className="pc-header">
+                    <span className="pc-badge badge-pro">Pros</span>
+                    <span className="pc-header-title">What customers love</span>
+                  </div>
+                  {data.pros.length === 0 ? (
+                    <div style={{color:'var(--muted)', fontSize:'0.82rem'}}>No strong positives detected.</div>
+                  ) : data.pros.map((p, i) => (
+                    <EvidenceCard key={i} item={p} isPro={true} />
+                  ))}
+                </div>
+
+                {/* Cons */}
+                <div className="pc-card">
+                  <div className="pc-header">
+                    <span className="pc-badge badge-con">Cons</span>
+                    <span className="pc-header-title">Common complaints</span>
+                  </div>
+                  {data.cons.length === 0 ? (
+                    <div style={{color:'var(--muted)', fontSize:'0.82rem'}}>No significant negatives detected.</div>
+                  ) : data.cons.map((c, i) => (
+                    <EvidenceCard key={i} item={c} isPro={false} />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
