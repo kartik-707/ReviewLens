@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 # ── Column aliases ──────────────────────────────────────────────────────────
 # The BOM character (\ufeff) sometimes prefixes the first column name.
-_ID_ALIASES      = {"id", "\ufeffid", "product_id"}
-_TEXT_ALIASES    = {"reviews.text", "review_text", "reviewtext"}
-_RATING_ALIASES  = {"reviews.rating", "rating"}
-_DATE_ALIASES    = {"reviews.dateadded", "review_date", "date"}
+_ID_ALIASES      = {"productid", "product_id", "id", "\ufeffid"}
+_TEXT_ALIASES    = {"text", "reviews.text", "review_text", "reviewtext"}
+_RATING_ALIASES  = {"score", "reviews.rating", "rating"}
+_DATE_ALIASES    = {"time", "reviews.dateadded", "review_date", "date"}
 
 
 def _find_col(columns: List[str], aliases: set) -> str:
